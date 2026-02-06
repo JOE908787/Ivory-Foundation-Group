@@ -230,6 +230,30 @@ app.delete('/api/users/:id', (req, res) => {
   });
 });
 
+// Admin: toggle user admin role (PATCH /api/users/:id)
+app.patch('/api/users/:id', (req, res) => {
+  if (!req.session.clientId) return res.status(401).json({ error: 'Not authenticated' });
+  const clientId = req.session.clientId;
+  db.get('SELECT is_admin FROM clients WHERE id = ?', [clientId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
+    const id = parseInt(req.params.id, 10);
+    if (id === clientId) return res.status(400).json({ error: 'Cannot change your own admin role' });
+    db.get('SELECT is_admin FROM clients WHERE id = ?', [id], (err2, targetRow) => {
+      if (err2) return res.status(500).json({ error: 'DB error' });
+      if (!targetRow) return res.status(404).json({ error: 'User not found' });
+      const newAdminStatus = targetRow.is_admin ? 0 : 1;
+      db.run('UPDATE clients SET is_admin = ? WHERE id = ?', [newAdminStatus, id], function(err3) {
+        if (err3) return res.status(500).json({ error: 'DB update error' });
+        db.get('SELECT id, email, name, is_admin FROM clients WHERE id = ?', [id], (err4, updated) => {
+          if (err4) return res.status(500).json({ error: 'DB error' });
+          res.json(updated);
+        });
+      });
+    });
+  });
+});
+
 // Serve protected file by id
 app.get('/protected-files/:id', (req, res) => {
   if (!req.session.clientId) return res.status(401).send('Not authenticated');

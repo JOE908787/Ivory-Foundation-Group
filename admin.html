@@ -82,11 +82,24 @@
         users.forEach(u=>{
           const li = document.createElement('li');
           li.textContent = `${u.email} (${u.name || ''}) ${u.is_admin? '[admin]':''}`;
+          
+          // Toggle admin button
+          const toggleBtn = document.createElement('button');
+          toggleBtn.textContent = u.is_admin ? 'Demote' : 'Promote';
+          toggleBtn.style.marginLeft='0.5rem';
+          toggleBtn.addEventListener('click', async ()=>{
+            if (!confirm(`${u.is_admin ? 'Demote' : 'Promote'} user?`)) return;
+            const p = await fetch('/api/users/'+u.id,{method:'PATCH'});
+            if (p.ok) { loadUsers(); } else { alert('Toggle failed'); }
+          });
+          if (u.id === me.id) { toggleBtn.disabled = true; toggleBtn.title = 'Cannot change your own role'; }
+          li.appendChild(toggleBtn);
+          
+          // Delete button
           const del = document.createElement('button'); del.textContent = 'Delete'; del.style.marginLeft='0.5rem';
           del.addEventListener('click', async ()=>{
             if (!confirm('Delete user?')) return; const d = await fetch('/api/users/'+u.id,{method:'DELETE'}); if (d.ok) { loadUsers(); } else { alert('Delete failed'); }
           });
-          // prevent showing delete for self
           if (u.id === me.id) { del.disabled = true; del.title = 'Cannot delete yourself'; }
           li.appendChild(del);
           ul.appendChild(li);
