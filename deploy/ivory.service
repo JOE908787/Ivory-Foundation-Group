@@ -1,0 +1,16 @@
+[Unit]
+Description=Ivory Foundation Group Node App
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/home/ear/Ivory/Ivory-Foundation-Group/server
+Environment=NODE_ENV=production
+Environment=SESSION_SECRET=replace-with-a-secure-secret
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

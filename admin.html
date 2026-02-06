@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin - Ivory Foundation Group</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">Ivory Foundation Group - Admin</div>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="clients.html">Clients</a></li>
+      </ul>
+    </div>
+  </nav>
+  <section class="page-header">
+    <div class="container">
+      <h1>Admin Uploads</h1>
+      <p>This page is for administrators to upload protected specification sheets.</p>
+    </div>
+  </section>
+  <section class="content-section">
+    <div class="container">
+      <div id="admin-area">
+        <p>Checking authentication...</p>
+      </div>
+    </div>
+  </section>
+  <script>
+    async function init(){
+      const res = await fetch('/api/me');
+      if (!res.ok) return location.href = '/clients.html';
+      const me = await res.json();
+      // Admin UI: show users and files lists
+      const adminArea = document.getElementById('admin-area');
+      adminArea.innerHTML = `\n+        <p>Signed in as ${me.email}</p>\n+        <div style="display:flex;gap:2rem;flex-wrap:wrap">\n+          <div style="flex:1;min-width:300px">\n+            <h3>Upload File</h3>\n+            <form id="upload-form" enctype="multipart/form-data">\n+              <input type="file" name="file" required>\n+              <button type="submit" class="cta-button">Upload File</button>\n+            </form>\n+            <div id="upload-msg" style="margin-top:1rem;color:#b22222"></div>\n+          </div>\n+          <div style="flex:1;min-width:300px">\n+            <h3>Files</h3>\n+            <div id="files-list-admin">Loading files...</div>\n+          </div>\n+          <div style="flex:1;min-width:300px">\n+            <h3>Users</h3>\n+            <div id="users-list">Loading users...</div>\n+          </div>\n+        </div>\n+      `;
+
+      document.getElementById('upload-form').addEventListener('submit', async function(e){
+        e.preventDefault();
+        const f = this.querySelector('input[type=file]').files[0];
+        if (!f) return;
+        const fd = new FormData(); fd.append('file', f);
+        const r = await fetch('/api/upload',{method:'POST',body:fd});
+        const j = await r.json();
+        const msg = document.getElementById('upload-msg');
+        if (j && j.ok) msg.style.color = '#1a472a', msg.textContent = 'Upload successful'; else msg.textContent = j.error || 'Upload failed';
+        if (j && j.ok) loadFiles();
+      });
+
+      async function loadFiles(){
+        const el = document.getElementById('files-list-admin');
+        el.textContent = 'Loading...';
+        const r = await fetch('/api/files');
+        if (!r.ok) { el.textContent = 'Failed to load'; return; }
+        const files = await r.json();
+        if (!files || files.length===0) { el.innerHTML = '<p>No files.</p>'; return; }
+        const ul = document.createElement('ul');
+        files.forEach(f=>{
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = '/protected-files/' + f.id;
+          a.textContent = f.originalname + ' (' + new Date(f.uploaded_at).toLocaleString() + ')';
+          const btn = document.createElement('button'); btn.textContent = 'Delete'; btn.style.marginLeft='0.5rem'; btn.addEventListener('click', async ()=>{
+            if (!confirm('Delete file?')) return; const d = await fetch('/api/files/'+f.id,{method:'DELETE'}); if (d.ok) loadFiles(); else alert('Delete failed');
+          });
+          li.appendChild(a); li.appendChild(btn); ul.appendChild(li);
+        });
+        el.innerHTML = ''; el.appendChild(ul);
+      }
+
+      async function loadUsers(){
+        const el = document.getElementById('users-list');
+        el.textContent = 'Loading...';
+        const r = await fetch('/api/users');
+        if (!r.ok) { el.textContent = 'Failed to load'; return; }
+        const users = await r.json();
+        if (!users || users.length===0) { el.innerHTML = '<p>No users.</p>'; return; }
+        const ul = document.createElement('ul');
+        users.forEach(u=>{
+          const li = document.createElement('li');
+          li.textContent = `${u.email} (${u.name || ''}) ${u.is_admin? '[admin]':''}`;
+          const del = document.createElement('button'); del.textContent = 'Delete'; del.style.marginLeft='0.5rem';
+          del.addEventListener('click', async ()=>{
+            if (!confirm('Delete user?')) return; const d = await fetch('/api/users/'+u.id,{method:'DELETE'}); if (d.ok) { loadUsers(); } else { alert('Delete failed'); }
+          });
+          // prevent showing delete for self
+          if (u.id === me.id) { del.disabled = true; del.title = 'Cannot delete yourself'; }
+          li.appendChild(del);
+          ul.appendChild(li);
+        });
+        el.innerHTML = ''; el.appendChild(ul);
+      }
+
+      loadFiles(); loadUsers();
+    }
+    init().catch(()=>location.href='/clients.html');
+  </script>
+</body>
+</html>

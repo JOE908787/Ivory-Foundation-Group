@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.myresolver.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.myresolver.acme.storage=/acme/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme.json:/acme/acme.json
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml
+    restart: unless-stopped
+
+  ivory:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ivory.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.ivory.entrypoints=websecure"
+      - "traefik.http.routers.ivory.tls=true"
+      - "traefik.http.routers.ivory.tls.certresolver=myresolver"
+      - "traefik.http.services.ivory.loadbalancer.server.port=3000"
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+    volumes:
+      - ../server/protected:/usr/src/app/server/protected
+    restart: unless-stopped

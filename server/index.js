@@ -177,6 +177,59 @@ app.get('/api/files', (req, res) => {
   });
 });
 
+// Admin: list users
+app.get('/api/users', (req, res) => {
+  if (!req.session.clientId) return res.status(401).json({ error: 'Not authenticated' });
+  db.get('SELECT is_admin FROM clients WHERE id = ?', [req.session.clientId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
+    db.all('SELECT id, email, name, is_admin FROM clients ORDER BY id', [], (err2, rows) => {
+      if (err2) return res.status(500).json({ error: 'DB error' });
+      res.json(rows);
+    });
+  });
+});
+
+// Admin: delete file by id
+app.delete('/api/files/:id', (req, res) => {
+  if (!req.session.clientId) return res.status(401).json({ error: 'Not authenticated' });
+  const clientId = req.session.clientId;
+  db.get('SELECT is_admin FROM clients WHERE id = ?', [clientId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
+    const id = req.params.id;
+    db.get('SELECT path FROM files WHERE id = ?', [id], (err2, fileRow) => {
+      if (err2) return res.status(500).json({ error: 'DB error' });
+      if (!fileRow) return res.status(404).json({ error: 'Not found' });
+      const filePath = fileRow.path;
+      // remove file from disk
+      fs.unlink(filePath, (unlinkErr) => {
+        // ignore unlink errors but proceed to delete DB record
+        db.run('DELETE FROM files WHERE id = ?', [id], function(err3) {
+          if (err3) return res.status(500).json({ error: 'DB delete error' });
+          res.json({ ok: true });
+        });
+      });
+    });
+  });
+});
+
+// Admin: delete user by id (cannot delete self)
+app.delete('/api/users/:id', (req, res) => {
+  if (!req.session.clientId) return res.status(401).json({ error: 'Not authenticated' });
+  const clientId = req.session.clientId;
+  db.get('SELECT is_admin FROM clients WHERE id = ?', [clientId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
+    const id = parseInt(req.params.id, 10);
+    if (id === clientId) return res.status(400).json({ error: 'Cannot delete yourself' });
+    db.run('DELETE FROM clients WHERE id = ?', [id], function(err2) {
+      if (err2) return res.status(500).json({ error: 'DB delete error' });
+      res.json({ ok: true });
+    });
+  });
+});
+
 // Serve protected file by id
 app.get('/protected-files/:id', (req, res) => {
   if (!req.session.clientId) return res.status(401).send('Not authenticated');

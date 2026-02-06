@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Client Portal - Ivory Foundation Group</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">Ivory Foundation Group</div>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="services.html">Services</a></li>
+        <li><a href="clients.html">Clients</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="page-header">
+    <div class="container">
+      <h1>Client Portal</h1>
+      <p>Protected specifications and resources. You must be signed in to view files.</p>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <div class="container">
+      <div id="status">Checking authentication...</div>
+      <div id="files" style="margin-top:1rem"></div>
+      <p style="margin-top:1rem"><a href="#" id="logout">Logout</a></p>
+    </div>
+  </section>
+
+  <script>
+    async function checkAuth(){
+      try{
+        const meRes = await fetch('/api/me');
+        if (!meRes.ok) return location.href = '/clients.html';
+        const me = await meRes.json();
+        document.getElementById('status').textContent = 'Signed in as ' + me.email;
+        const filesRes = await fetch('/api/files');
+        if (!filesRes.ok) { document.getElementById('files').textContent = 'Failed to load files.'; return; }
+        const files = await filesRes.json();
+        renderFiles(files);
+      }catch(e){
+        location.href = '/clients.html';
+      }
+    }
+
+    function renderFiles(files){
+      const el = document.getElementById('files');
+      if (!files || files.length===0) { el.innerHTML = '<p>No files available.</p>'; return; }
+      const ul = document.createElement('ul');
+      files.forEach(f=>{
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '/protected-files/' + f.id;
+        a.textContent = f.originalname + ' (' + new Date(f.uploaded_at).toLocaleString() + ')';
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      el.innerHTML = '';
+      el.appendChild(ul);
+    }
+
+    document.getElementById('logout').addEventListener('click', function(e){
+      e.preventDefault();
+      fetch('/api/logout',{method:'POST'}).then(()=>location.href='/clients.html');
+    });
+
+    checkAuth();
+  </script>
+</body>
+</html>

@@ -79,6 +79,147 @@ Ivory-Foundation-Group/
 3. Click "Learn More" buttons to explore different sections
 4. Fill out the contact form to get in touch
 
+## Running the protected client portal (server-side login)
+
+The project includes a small Express server to provide secure login and a protected client portal. It serves the static site and provides `/api/login`, `/api/logout`, and `/portal` for authenticated clients.
+
+Run the server from the project folder:
+
+```bash
+cd Ivory-Foundation-Group/server
+npm install
+npm start
+```
+
+Then open `http://localhost:3000/clients.html` to log in. A default seeded client is created on first run:
+
+- email: `client@ivory.example`
+- password: `ChangeMe123!`
+
+Change the seeded password by registering a new client with the `/api/register` endpoint or update the database directly.
+
+## HTTPS and Deployment
+
+For production you should run the server behind HTTPS. Two options:
+
+- Use a hosting provider (recommended): deploy to a platform such as DigitalOcean, Render, or Heroku and enable TLS via their managed certificates.
+- Self-host with Nginx as a reverse proxy and obtain certificates from Let's Encrypt.
+
+Example `nginx` snippet to proxy and terminate TLS:
+
+```nginx
+server {
+  listen 80;
+  server_name your-domain.example;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl;
+  server_name your-domain.example;
+
+  ssl_certificate /etc/letsencrypt/live/your-domain/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/your-domain/privkey.pem;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+Deployment notes:
+
+- Set a secure `SESSION_SECRET` environment variable and update `server/index.js` to read it from `process.env.SESSION_SECRET` before using in production.
+- Use a managed database or back up `server/db.sqlite` regularly.
+- Run the Node process under a process manager (systemd, pm2) and enable firewall rules.
+
+Detailed deployment options
+---------------------------
+
+1) Nginx reverse-proxy + systemd (recommended)
+
+- Install Node on the server and copy the project to `/home/ear/Ivory/Ivory-Foundation-Group`.
+- Install dependencies and set env vars:
+
+```bash
+cd /home/ear/Ivory/Ivory-Foundation-Group/server
+npm ci
+export SESSION_SECRET="$(openssl rand -hex 32)"
+```
+
+- Create a systemd unit file (example provided at `deploy/ivory.service`) and modify `WorkingDirectory`/`User`/`SESSION_SECRET` as needed. Then enable & start:
+
+```bash
+sudo cp deploy/ivory.service /etc/systemd/system/ivory.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ivory.service
+```
+
+- Use the example `nginx` configuration above to proxy `https://your-domain` to `http://127.0.0.1:3000` and obtain TLS via Certbot:
+
+```bash
+sudo apt update
+sudo apt install nginx certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.example
+```
+
+2) PM2 process manager
+
+- Install pm2 and start the app using provided ecosystem config:
+
+```bash
+npm install -g pm2
+cd /home/ear/Ivory/Ivory-Foundation-Group
+pm2 start deploy/ecosystem.config.js
+pm2 save
+pm2 startup
+```
+
+3) Docker (containerized)
+
+- Build and run the container (terminate TLS at the host with Nginx or use a reverse proxy container):
+
+```bash
+cd /home/ear/Ivory/Ivory-Foundation-Group/server
+docker build -t ivory-portal:latest .
+docker run -e SESSION_SECRET="$(openssl rand -hex 32)" -p 3000:3000 -d ivory-portal:latest
+```
+
+4) Docker Compose + Traefik (recommended — automatic TLS)
+
+This repository includes a ready `deploy/docker-compose.yml` that runs Traefik to obtain Let's Encrypt certificates and your app in a container. Steps:
+
+```bash
+cd /home/ear/Ivory/Ivory-Foundation-Group
+cp .env.example .env
+# Edit .env and set DOMAIN and LETSENCRYPT_EMAIL, and SESSION_SECRET
+sudo chmod 600 deploy/traefik/acme.json
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+After a few moments Traefik will obtain certificates and your site will be available at `https://$DOMAIN`.
+
+Notes:
+- Ensure port 80 and 443 are reachable from the internet for domain verification.
+- The `deploy/traefik/acme.json` file must be writable by the Traefik container and secured (`chmod 600`).
+- To view Traefik dashboard: `http://localhost:8080` if you enable the dashboard and map a port (not recommended for production without auth).
+
+4) Securing the app
+
+- Use `SESSION_SECRET` (strong, random) in production.
+- Configure your reverse proxy (Nginx) to set `proxy_set_header X-Forwarded-Proto $scheme;` and enable `app.set('trust proxy', 1)` by setting `TRUST_PROXY=1` in the environment.
+- Enable firewall (allow 80/443) and restrict direct access to the Node port (3000) to localhost only.
+
+5) Let’s Encrypt / Certbot
+
+- Use `certbot --nginx` to automatically obtain and install certificates for Nginx as shown above. Certbot will configure renewal automatically.
+
+If you'd like, I can: create a `systemd` user service configured for your environment, deploy a Docker Compose that includes an Nginx reverse proxy with Let's Encrypt (via `linuxserver/letsencrypt` or `traefik`), or help provision a VM on a provider (DigitalOcean) and deploy end-to-end.
+
 ## Customization
 
 ### Colors
