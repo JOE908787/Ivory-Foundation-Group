@@ -91,12 +91,47 @@ npm install
 npm start
 ```
 
-Then open `http://localhost:3000/clients.html` to log in. A default seeded client is created on first run:
+Then open `http://localhost:3000/clients.html` to log in. Two default seeded accounts are created on first run:
 
+**Regular Client:**
 - email: `client@ivory.example`
 - password: `ChangeMe123!`
 
-Change the seeded password by registering a new client with the `/api/register` endpoint or update the database directly.
+**Administrator:**
+- email: `admin@ivory.example`
+- password: `AdminChangeMe!`
+
+Administrators have additional privileges and can access the admin dashboard at `/admin.html` to:
+- Upload specification sheets and other protected files
+- Manage user accounts (view, delete, promote/demote)
+- View audit logs of all administrative actions
+
+## API Endpoints
+
+### Authentication
+- `POST /api/login` - Login with email and password
+- `POST /api/logout` - Logout (requires authenticated session)
+- `GET /api/me` - Get current authenticated user info
+- `POST /api/register` - Register new user (email verification required)
+- `POST /api/request-password-reset` - Request password reset email
+- `POST /api/reset-password` - Reset password with token
+- `POST /api/verify-email` - Verify email with token
+
+### File Management (Admin Only)
+- `POST /api/upload` - Upload a file (multipart/form-data)
+- `GET /api/files` - List all uploaded files
+- `DELETE /api/files/:id` - Delete a file
+- `GET /protected-files/:id` - Download a file (authenticated clients only)
+
+### User Management (Admin Only)
+- `GET /api/users` - List all users
+- `PATCH /api/users/:id` - Toggle user admin role
+- `DELETE /api/users/:id` - Delete a user account
+
+### Audit & Logging (Admin Only)
+- `GET /api/audit-logs` - View audit logs (latest 100 entries)
+
+For security reasons, change the seeded passwords immediately in production. You can register additional admin users via the `/api/register` endpoint and then promote them to admin through the admin dashboard UI.
 
 ## HTTPS and Deployment
 
@@ -219,6 +254,60 @@ Notes:
 - Use `certbot --nginx` to automatically obtain and install certificates for Nginx as shown above. Certbot will configure renewal automatically.
 
 If you'd like, I can: create a `systemd` user service configured for your environment, deploy a Docker Compose that includes an Nginx reverse proxy with Let's Encrypt (via `linuxserver/letsencrypt` or `traefik`), or help provision a VM on a provider (DigitalOcean) and deploy end-to-end.
+
+## Security Features
+
+The application includes enterprise-grade security features to protect user accounts and maintain audit trails:
+
+### Email Verification
+- New registrations require email verification before account activation
+- Users receive a verification email with a link (valid for 24 hours)
+- Email verification prevents spam registrations and ensures valid contact information
+- Unverified accounts cannot log in
+
+### Password Reset
+- Users can request a password reset via the "Forgot Password?" link on the login page
+- A password reset link is sent via email (valid for 1 hour)
+- Password reset tokens are cryptographically secure and single-use
+- Passwords are hashed using bcrypt with 10 salt rounds
+
+### Login Rate Limiting
+- Prevents brute-force attacks by limiting login attempts
+- Maximum 10 login attempts per 15 minutes per IP address
+- Rate limit errors return HTTP 429 (Too Many Requests)
+- Helps protect accounts from unauthorized access attempts
+
+### Audit Logging
+- All administrative actions are logged for accountability and security monitoring
+- Logged actions include:
+  - User registration and email verification
+  - Password reset requests and completions
+  - File uploads and deletions
+  - User role changes (promote/demote)
+  - User account deletions
+- Audit logs are viewable in the Admin Dashboard (requires admin role)
+- Each log entry includes timestamp, action type, user ID, resource ID, and details
+
+### Email Configuration
+To enable email verification and password reset features, configure SMTP settings in your `.env` file:
+
+```bash
+APP_URL=https://your-domain.example              # Base URL for email links
+MAIL_HOST=smtp.gmail.com                         # SMTP server hostname
+MAIL_PORT=587                                    # SMTP port (typically 587 or 465)
+MAIL_SECURE=false                                # Use TLS (false for 587, true for 465)
+MAIL_USER=your-email@gmail.com                   # SMTP username
+MAIL_PASSWORD=your-app-password-or-token         # SMTP password or auth token
+MAIL_FROM=noreply@your-domain.example            # From address for emails
+```
+
+**Email provider examples:**
+- **Gmail**: Use an [App Password](https://myaccount.google.com/apppasswords) instead of your account password
+- **SendGrid**: Use `apikey` as username and your API key as password
+- **AWS SES**: Use SMTP credentials from your SES console
+- **Mailgun**: Use `postmaster@yourdomain.mailgun.org` as username and your SMTP password
+
+If email is not configured, password reset and verification emails will fail silently in development but should be configured for production.
 
 ## Customization
 
