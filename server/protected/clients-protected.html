@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Client Resources</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Protected Client Resources</h1>
+    <p>Below are specification sheets and private resources available to authenticated clients.</p>
+    <div id="files-list">Loading files...</div>
+    <p><a href="#" id="logout">Logout</a></p>
+  </div>
+  <script>
+    function renderFiles(files){
+      const el = document.getElementById('files-list');
+      if (!files || files.length===0) { el.innerHTML = '<p>No files available.</p>'; return; }
+      const ul = document.createElement('ul');
+      files.forEach(f => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '/protected-files/' + f.id;
+        a.textContent = f.originalname + ' (' + new Date(f.uploaded_at).toLocaleString() + ')';
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      el.innerHTML = '';
+      el.appendChild(ul);
+    }
+
+    fetch('/api/files').then(r=>r.json()).then(data=>{
+      if (data && data.error) { document.getElementById('files-list').textContent = 'Error: ' + data.error; return; }
+      renderFiles(data);
+    }).catch(()=>document.getElementById('files-list').textContent='Network error');
+
+    document.getElementById('logout').addEventListener('click', function(e){
+      e.preventDefault(); fetch('/api/logout',{method:'POST'}).then(()=>location='/clients.html');
+    });
+  </script>
+</body>
+</html>
